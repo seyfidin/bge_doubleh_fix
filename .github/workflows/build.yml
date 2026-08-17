@@ -29,10 +29,10 @@ jobs:
         shell: cmd
         run: |
           if not exist build mkdir build
-          cl /nologo /std:c++17 /O2 /EHsc /W4 /MT /DUNICODE /D_UNICODE ^
+          cl /nologo /std:c++17 /O2 /EHsc /W4 /MT ^
              main.cpp ^
              /Fe:build\BGE_DoubleH_Fix.exe ^
-             /link /SUBSYSTEM:WINDOWS /OPT:REF /OPT:ICF Comdlg32.lib Shell32.lib
+             /link /SUBSYSTEM:WINDOWS /OPT:REF /OPT:ICF User32.lib Gdi32.lib Comdlg32.lib Shell32.lib
 
       - name: Show file info
         shell: pwsh

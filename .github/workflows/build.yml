@@ -1,0 +1,49 @@
+name: Build Windows EXE
+
+on:
+  push:
+    branches:
+      - "**"
+    tags-ignore:
+      - "v*"
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-2022
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Initialize MSVC x64 environment
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Build x64 Release
+        shell: cmd
+        run: |
+          if not exist build mkdir build
+          cl /nologo /std:c++17 /O2 /EHsc /W4 /MT /DUNICODE /D_UNICODE ^
+             main.cpp ^
+             /Fe:build\BGE_DoubleH_Fix.exe ^
+             /link /SUBSYSTEM:WINDOWS /OPT:REF /OPT:ICF Comdlg32.lib Shell32.lib
+
+      - name: Show file info
+        shell: pwsh
+        run: |
+          Get-Item .\build\BGE_DoubleH_Fix.exe | Format-List Name,Length,LastWriteTime
+          Get-FileHash .\build\BGE_DoubleH_Fix.exe -Algorithm SHA256
+
+      - name: Upload EXE artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: BGE_DoubleH_Fix-win64
+          path: build/BGE_DoubleH_Fix.exe
+          if-no-files-found: error
+          retention-days: 30

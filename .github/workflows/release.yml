@@ -1,0 +1,55 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: windows-2022
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Initialize MSVC x64 environment
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Build x64 Release
+        shell: cmd
+        run: |
+          if not exist build mkdir build
+          cl /nologo /std:c++17 /O2 /EHsc /W4 /MT /DUNICODE /D_UNICODE ^
+             main.cpp ^
+             /Fe:build\BGE_DoubleH_Fix.exe ^
+             /link /SUBSYSTEM:WINDOWS /OPT:REF /OPT:ICF Comdlg32.lib Shell32.lib
+
+      - name: Generate SHA-256 file
+        shell: pwsh
+        run: |
+          $hash = (Get-FileHash .\build\BGE_DoubleH_Fix.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  BGE_DoubleH_Fix.exe" | Set-Content -Encoding ascii .\build\BGE_DoubleH_Fix.exe.sha256
+          Get-Content .\build\BGE_DoubleH_Fix.exe.sha256
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: BGE_DoubleH_Fix-win64-${{ github.ref_name }}
+          path: |
+            build/BGE_DoubleH_Fix.exe
+            build/BGE_DoubleH_Fix.exe.sha256
+          if-no-files-found: error
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            build/BGE_DoubleH_Fix.exe
+            build/BGE_DoubleH_Fix.exe.sha256

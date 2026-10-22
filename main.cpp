@@ -6,6 +6,7 @@
 #include <shellapi.h>
 
 #include <algorithm>
+#include <cwchar>
 #include <cstdint>
 #include <fstream>
 #include <iomanip>
@@ -664,7 +665,6 @@ namespace
 
             const int id = static_cast<int>(dis->CtlID);
             const bool repair = id == IDC_REPAIR;
-            const bool choose = id == IDC_CHOOSE;
             const bool disabled = (dis->itemState & ODS_DISABLED) != 0;
             const bool pressed = (dis->itemState & ODS_SELECTED) != 0;
 

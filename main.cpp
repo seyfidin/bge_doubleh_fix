@@ -39,13 +39,20 @@ namespace
         IDC_DETAILS = 1004,
         IDC_REPAIR = 1005,
         IDC_EXIT = 1006,
+        IDC_HEADER_TITLE = 1007,
+        IDC_HEADER_SUBTITLE = 1008,
+        IDC_HINT = 1009,
+        IDC_DETAILS_LABEL = 1010,
+        IDC_FILE_LABEL = 1011,
     };
 
     HWND g_path = nullptr;
     HWND g_status = nullptr;
     HWND g_details = nullptr;
     HWND g_repair = nullptr;
+    HWND g_hint = nullptr;
     std::wstring g_selectedPath;
+    HBRUSH g_editBrush = nullptr;
 
     struct SaveInfo
     {
@@ -254,11 +261,13 @@ namespace
             if (state == kFollowState)
             {
                 SetText(g_status, L"No repair needed");
+                SetText(g_hint, L"Everything looks good — Double H is already set to Follow.");
                 details << L"\r\nDouble H is already in Follow state (0).";
             }
             else if (state == kBugState)
             {
                 SetText(g_status, L"Lost Partner repair pattern detected");
+                SetText(g_hint, L"A safe repair is available. A backup is created automatically.");
                 details << L"\r\nConfirmed repair candidate:\r\n";
                 details << L"Perso_ID_status[1]: 4 -> 0\r\n\r\n";
                 details << L"A backup will be created automatically before any change.";
@@ -267,6 +276,7 @@ namespace
             else
             {
                 SetText(g_status, L"Different Double H state detected");
+                SetText(g_hint, L"No changes are offered for this state to protect your save.");
                 details << L"\r\nThis tool only auto-repairs the confirmed 4 -> 0 case.\r\n";
                 details << L"No automatic change will be offered for state "
                         << static_cast<unsigned>(state) << L".";
@@ -277,6 +287,7 @@ namespace
         catch (const std::exception& e)
         {
             SetText(g_status, L"Save format not recognized");
+            SetText(g_hint, L"The file does not match the expected structure. Nothing was changed.");
             SetText(g_details, L"ERROR\r\n\r\n" + Utf8ish(e.what()));
         }
     }
@@ -412,88 +423,281 @@ namespace
         SendMessageW(hwnd, WM_SETFONT, reinterpret_cast<WPARAM>(font), TRUE);
     }
 
+    void DrawRoundedRect(HDC hdc, const RECT& rect, COLORREF fill, COLORREF border, int radius = 14)
+    {
+        HBRUSH brush = CreateSolidBrush(fill);
+        HPEN pen = CreatePen(PS_SOLID, 1, border);
+        HGDIOBJ oldBrush = SelectObject(hdc, brush);
+        HGDIOBJ oldPen = SelectObject(hdc, pen);
+        RoundRect(hdc, rect.left, rect.top, rect.right, rect.bottom, radius, radius);
+        SelectObject(hdc, oldBrush);
+        SelectObject(hdc, oldPen);
+        DeleteObject(brush);
+        DeleteObject(pen);
+    }
+
+    void DrawLabel(HDC hdc, const wchar_t* text, RECT rect, HFONT font, COLORREF color, UINT flags = DT_LEFT | DT_VCENTER | DT_SINGLELINE)
+    {
+        HGDIOBJ oldFont = SelectObject(hdc, font);
+        SetBkMode(hdc, TRANSPARENT);
+        SetTextColor(hdc, color);
+        DrawTextW(hdc, text, -1, &rect, flags);
+        SelectObject(hdc, oldFont);
+    }
+
     LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
     {
         static HFONT font = nullptr;
         static HFONT fontTitle = nullptr;
         static HFONT fontStatus = nullptr;
         static HFONT fontMono = nullptr;
+        static HFONT fontSection = nullptr;
+        static HFONT fontBrand = nullptr;
 
         switch (msg)
         {
         case WM_CREATE:
         {
-            font = CreateGuiFont(9);
-            fontTitle = CreateGuiFont(15, true);
-            fontStatus = CreateGuiFont(11, true);
-            fontMono = CreateGuiFont(10, false, L"Consolas");
+            font = CreateGuiFont(10);
+            fontTitle = CreateGuiFont(17, true);
+            fontStatus = CreateGuiFont(12, true);
+            fontMono = CreateGuiFont(9, false, L"Consolas");
+            fontSection = CreateGuiFont(8, true);
+            fontBrand = CreateGuiFont(12, true);
+            g_editBrush = CreateSolidBrush(RGB(255, 255, 255));
 
             HWND title = CreateWindowW(
-                L"STATIC", L"Beyond Good & Evil 20th Anniversary Edition",
+                L"STATIC", L"BGE Double H Fix",
                 WS_CHILD | WS_VISIBLE,
-                16, 14, 700, 30,
-                hwnd, nullptr, nullptr, nullptr);
+                100, 22, 510, 35,
+                hwnd, reinterpret_cast<HMENU>(IDC_HEADER_TITLE), nullptr, nullptr);
             ApplyFont(title, fontTitle);
 
             HWND subtitle = CreateWindowW(
-                L"STATIC", L"Double H Lost Partner save repair",
+                L"STATIC", L"Beyond Good & Evil · 20th Anniversary Edition",
                 WS_CHILD | WS_VISIBLE,
-                16, 45, 700, 24,
-                hwnd, nullptr, nullptr, nullptr);
+                101, 59, 570, 24,
+                hwnd, reinterpret_cast<HMENU>(IDC_HEADER_SUBTITLE), nullptr, nullptr);
             ApplyFont(subtitle, font);
+
+            HWND fileLabel = CreateWindowW(
+                L"STATIC", L"SAVE FILE",
+                WS_CHILD | WS_VISIBLE,
+                44, 149, 250, 19,
+                hwnd, reinterpret_cast<HMENU>(IDC_FILE_LABEL), nullptr, nullptr);
+            ApplyFont(fileLabel, fontSection);
 
             g_path = CreateWindowExW(
                 WS_EX_CLIENTEDGE, L"EDIT", L"No save selected",
                 WS_CHILD | WS_VISIBLE | ES_AUTOHSCROLL | ES_READONLY,
-                16, 78, 570, 27,
+                44, 176, 656, 32,
                 hwnd, reinterpret_cast<HMENU>(IDC_PATH), nullptr, nullptr);
             ApplyFont(g_path, font);
 
             HWND choose = CreateWindowW(
-                L"BUTTON", L"Choose Save...",
-                WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-                596, 77, 130, 29,
+                L"BUTTON", L"Choose save…",
+                WS_CHILD | WS_VISIBLE | BS_OWNERDRAW,
+                714, 175, 202, 35,
                 hwnd, reinterpret_cast<HMENU>(IDC_CHOOSE), nullptr, nullptr);
             ApplyFont(choose, font);
 
             g_status = CreateWindowW(
-                L"STATIC", L"Select a slot*.sav file to inspect it.",
+                L"STATIC", L"Ready to inspect",
                 WS_CHILD | WS_VISIBLE,
-                16, 121, 710, 28,
+                48, 257, 850, 28,
                 hwnd, reinterpret_cast<HMENU>(IDC_STATUS), nullptr, nullptr);
             ApplyFont(g_status, fontStatus);
 
+            g_hint = CreateWindowW(
+                L"STATIC", L"Select a save file to check whether the confirmed repair applies.",
+                WS_CHILD | WS_VISIBLE,
+                48, 288, 850, 24,
+                hwnd, reinterpret_cast<HMENU>(IDC_HINT), nullptr, nullptr);
+            ApplyFont(g_hint, font);
+
+            HWND detailsLabel = CreateWindowW(
+                L"STATIC", L"SAVE INSPECTION",
+                WS_CHILD | WS_VISIBLE,
+                44, 372, 250, 20,
+                hwnd, reinterpret_cast<HMENU>(IDC_DETAILS_LABEL), nullptr, nullptr);
+            ApplyFont(detailsLabel, fontSection);
+
             g_details = CreateWindowExW(
-                WS_EX_CLIENTEDGE, L"EDIT", L"",
+                WS_EX_CLIENTEDGE, L"EDIT", L"Choose a save file to see its structure and repair eligibility.",
                 WS_CHILD | WS_VISIBLE | ES_MULTILINE | ES_AUTOVSCROLL |
                 ES_AUTOHSCROLL | ES_READONLY | WS_VSCROLL | WS_HSCROLL,
-                16, 154, 710, 250,
+                44, 400, 872, 154,
                 hwnd, reinterpret_cast<HMENU>(IDC_DETAILS), nullptr, nullptr);
             ApplyFont(g_details, fontMono);
 
-            HWND hint = CreateWindowW(
-                L"STATIC", L"Tip: drag a .sav file onto this window or the EXE.",
+            HWND footer = CreateWindowW(
+                L"STATIC", L"Your save is backed up before any repair.",
                 WS_CHILD | WS_VISIBLE,
-                16, 423, 420, 24,
+                28, 590, 420, 24,
                 hwnd, nullptr, nullptr, nullptr);
-            ApplyFont(hint, font);
+            ApplyFont(footer, font);
 
             g_repair = CreateWindowW(
                 L"BUTTON", L"Repair Double H",
-                WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON | WS_DISABLED,
-                470, 417, 140, 31,
+                WS_CHILD | WS_VISIBLE | BS_OWNERDRAW | WS_DISABLED,
+                620, 584, 168, 39,
                 hwnd, reinterpret_cast<HMENU>(IDC_REPAIR), nullptr, nullptr);
             ApplyFont(g_repair, font);
 
             HWND exitBtn = CreateWindowW(
-                L"BUTTON", L"Exit",
-                WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-                620, 417, 106, 31,
+                L"BUTTON", L"Close",
+                WS_CHILD | WS_VISIBLE | BS_OWNERDRAW,
+                804, 584, 112, 39,
                 hwnd, reinterpret_cast<HMENU>(IDC_EXIT), nullptr, nullptr);
             ApplyFont(exitBtn, font);
 
             DragAcceptFiles(hwnd, TRUE);
             return 0;
+        }
+
+        case WM_ERASEBKGND:
+        {
+            RECT client{};
+            GetClientRect(hwnd, &client);
+            HBRUSH bg = CreateSolidBrush(RGB(244, 247, 251));
+            FillRect(reinterpret_cast<HDC>(wParam), &client, bg);
+            DeleteObject(bg);
+            return 1;
+        }
+
+        case WM_PAINT:
+        {
+            PAINTSTRUCT ps{};
+            HDC hdc = BeginPaint(hwnd, &ps);
+            RECT client{};
+            GetClientRect(hwnd, &client);
+
+            HBRUSH background = CreateSolidBrush(RGB(244, 247, 251));
+            FillRect(hdc, &client, background);
+            DeleteObject(background);
+
+            RECT header{ 0, 0, client.right, 116 };
+            HBRUSH headerBrush = CreateSolidBrush(RGB(18, 29, 48));
+            FillRect(hdc, &header, headerBrush);
+            DeleteObject(headerBrush);
+
+            RECT accent{ 0, 0, 6, 116 };
+            HBRUSH accentBrush = CreateSolidBrush(RGB(52, 211, 178));
+            FillRect(hdc, &accent, accentBrush);
+            DeleteObject(accentBrush);
+
+            RECT logo{ 24, 24, 80, 80 };
+            DrawRoundedRect(hdc, logo, RGB(52, 211, 178), RGB(52, 211, 178), 14);
+            RECT brandText{ 24, 24, 80, 80 };
+            DrawLabel(hdc, L"BH", brandText, fontBrand, RGB(18, 29, 48), DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+
+            RECT badge{ client.right - 206, 36, client.right - 28, 66 };
+            DrawRoundedRect(hdc, badge, RGB(34, 48, 69), RGB(57, 72, 94), 14);
+            RECT badgeText{ badge.left + 10, badge.top + 1, badge.right - 10, badge.bottom - 1 };
+            DrawLabel(hdc, L"NATIVE  ·  SAFE PATCH", badgeText, fontSection, RGB(206, 218, 231), DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+
+            RECT fileCard{ 24, 136, client.right - 24, 226 };
+            RECT fileShadow = fileCard; OffsetRect(&fileShadow, 0, 3);
+            DrawRoundedRect(hdc, fileShadow, RGB(228, 233, 241), RGB(228, 233, 241), 16);
+            DrawRoundedRect(hdc, fileCard, RGB(255, 255, 255), RGB(230, 235, 243), 16);
+
+            RECT statusCard{ 24, 242, client.right - 24, 332 };
+            RECT statusShadow = statusCard; OffsetRect(&statusShadow, 0, 3);
+            DrawRoundedRect(hdc, statusShadow, RGB(228, 233, 241), RGB(228, 233, 241), 16);
+            DrawRoundedRect(hdc, statusCard, RGB(255, 255, 255), RGB(230, 235, 243), 16);
+
+            RECT detailsCard{ 24, 358, client.right - 24, 568 };
+            RECT detailsShadow = detailsCard; OffsetRect(&detailsShadow, 0, 3);
+            DrawRoundedRect(hdc, detailsShadow, RGB(228, 233, 241), RGB(228, 233, 241), 16);
+            DrawRoundedRect(hdc, detailsCard, RGB(255, 255, 255), RGB(230, 235, 243), 16);
+
+            EndPaint(hwnd, &ps);
+            return 0;
+        }
+
+        case WM_CTLCOLORSTATIC:
+        {
+            HDC hdc = reinterpret_cast<HDC>(wParam);
+            HWND control = reinterpret_cast<HWND>(lParam);
+            SetBkMode(hdc, TRANSPARENT);
+
+            if (GetDlgCtrlID(control) == IDC_HEADER_TITLE)
+                SetTextColor(hdc, RGB(248, 250, 252));
+            else if (GetDlgCtrlID(control) == IDC_HEADER_SUBTITLE)
+                SetTextColor(hdc, RGB(181, 194, 211));
+            else if (GetDlgCtrlID(control) == IDC_FILE_LABEL || GetDlgCtrlID(control) == IDC_DETAILS_LABEL)
+                SetTextColor(hdc, RGB(105, 121, 143));
+            else if (GetDlgCtrlID(control) == IDC_HINT)
+                SetTextColor(hdc, RGB(102, 117, 137));
+            else if (control == g_status)
+            {
+                wchar_t statusText[256]{};
+                GetWindowTextW(control, statusText, 256);
+                if (wcsstr(statusText, L"not recognized") || wcsstr(statusText, L"Different"))
+                    SetTextColor(hdc, RGB(185, 65, 65));
+                else if (wcsstr(statusText, L"Lost Partner"))
+                    SetTextColor(hdc, RGB(35, 105, 190));
+                else if (wcsstr(statusText, L"No repair needed"))
+                    SetTextColor(hdc, RGB(28, 133, 99));
+                else
+                    SetTextColor(hdc, RGB(33, 47, 66));
+            }
+            else
+                SetTextColor(hdc, RGB(102, 117, 137));
+
+            return reinterpret_cast<LRESULT>(GetStockObject(NULL_BRUSH));
+        }
+
+        case WM_CTLCOLOREDIT:
+        {
+            HDC hdc = reinterpret_cast<HDC>(wParam);
+            SetTextColor(hdc, RGB(35, 48, 66));
+            SetBkColor(hdc, RGB(255, 255, 255));
+            return reinterpret_cast<LRESULT>(g_editBrush ? g_editBrush : GetStockObject(WHITE_BRUSH));
+        }
+
+        case WM_DRAWITEM:
+        {
+            const auto* dis = reinterpret_cast<DRAWITEMSTRUCT*>(lParam);
+            if (!dis || dis->CtlType != ODT_BUTTON)
+                break;
+
+            const int id = static_cast<int>(dis->CtlID);
+            const bool repair = id == IDC_REPAIR;
+            const bool choose = id == IDC_CHOOSE;
+            const bool disabled = (dis->itemState & ODS_DISABLED) != 0;
+            const bool pressed = (dis->itemState & ODS_SELECTED) != 0;
+
+            COLORREF fill = repair ? RGB(35, 105, 190) : RGB(247, 249, 252);
+            COLORREF border = repair ? RGB(35, 105, 190) : RGB(218, 225, 235);
+            COLORREF textColor = repair ? RGB(255, 255, 255) : RGB(43, 57, 77);
+
+            if (disabled)
+            {
+                fill = RGB(228, 233, 241);
+                border = fill;
+                textColor = RGB(146, 157, 173);
+            }
+            else if (pressed)
+            {
+                fill = repair ? RGB(25, 82, 153) : RGB(232, 238, 246);
+                border = fill;
+            }
+            else if (id == IDC_EXIT)
+            {
+                fill = RGB(255, 255, 255);
+            }
+
+            DrawRoundedRect(dis->hDC, dis->rcItem, fill, border, 10);
+            wchar_t buttonText[128]{};
+            GetWindowTextW(dis->hwndItem, buttonText, 128);
+            RECT textRect = dis->rcItem;
+            SetBkMode(dis->hDC, TRANSPARENT);
+            SetTextColor(dis->hDC, textColor);
+            HGDIOBJ oldFont = SelectObject(dis->hDC, font);
+            DrawTextW(dis->hDC, buttonText, -1, &textRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+            SelectObject(dis->hDC, oldFont);
+            return TRUE;
         }
 
         case WM_COMMAND:
@@ -528,6 +732,9 @@ namespace
             if (fontTitle) DeleteObject(fontTitle);
             if (fontStatus) DeleteObject(fontStatus);
             if (fontMono) DeleteObject(fontMono);
+            if (fontSection) DeleteObject(fontSection);
+            if (fontBrand) DeleteObject(fontBrand);
+            if (g_editBrush) DeleteObject(g_editBrush);
             PostQuitMessage(0);
             return 0;
         }
@@ -557,7 +764,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR cmdLine, int show)
         kAppTitle,
         WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX,
         CW_USEDEFAULT, CW_USEDEFAULT,
-        760, 505,
+        980, 700,
         nullptr, nullptr, instance, nullptr);
 
     if (!hwnd)

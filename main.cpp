@@ -450,7 +450,7 @@ namespace
 
             HWND subtitle = CreateWindowW(
                 L"STATIC", L"Beyond Good & Evil | 20th Anniversary Edition",
-                WS_CHILD | WS_VISIBLE,
+                WS_CHILD | WS_VISIBLE | SS_NOPREFIX,
                 25, 46, 650, 20,
                 hwnd, reinterpret_cast<HMENU>(IDC_HEADER_SUBTITLE), nullptr, nullptr);
             ApplyFont(subtitle, font);

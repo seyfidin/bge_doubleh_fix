@@ -238,6 +238,9 @@ namespace
     void SetText(HWND hwnd, const std::wstring& text)
     {
         SetWindowTextW(hwnd, text.c_str());
+        // Force the control to repaint immediately after its content changes.
+        // This prevents stale glyphs from remaining visible on some Windows themes.
+        RedrawWindow(hwnd, nullptr, nullptr, RDW_INVALIDATE | RDW_ERASE | RDW_UPDATENOW);
     }
 
     void LoadSave(const std::wstring& path)

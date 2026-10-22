@@ -12,6 +12,10 @@ This version uses the Win32 API directly. There is:
 
 When compiled with MSVC `/MT`, the C/C++ runtime is statically linked as well.
 
+## AI-assisted development
+
+This project was developed with the assistance of AI tools. AI was used to generate and refine parts of the source code. The project maintainer is responsible for reviewing, testing, and maintaining the code. As with any save-file editing utility, review the source and keep independent backups of your saves.
+
 ## Confirmed repair
 
 The affected save used to develop this tool contained:

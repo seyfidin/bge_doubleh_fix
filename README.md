@@ -49,7 +49,7 @@ Requirements: Visual Studio 2022 Build Tools with the **Desktop development with
    build_msvc.bat
    ```
 
-The executable is created at `build\\BGE_DoubleH_Fix.exe`.
+The executable is created at `build\BGE_DoubleH_Fix.exe`.
 
 ## AI-assisted development
 

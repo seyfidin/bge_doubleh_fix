@@ -430,6 +430,8 @@ namespace
         static HFONT fontStatus = nullptr;
         static HFONT fontMono = nullptr;
         static HFONT fontSection = nullptr;
+        static HBRUSH lightBackgroundBrush = nullptr;
+        static HBRUSH darkHeaderBrush = nullptr;
 
         switch (msg)
         {
@@ -440,6 +442,8 @@ namespace
             fontStatus = CreateGuiFont(12, true);
             fontMono = CreateGuiFont(9, false, L"Consolas");
             fontSection = CreateGuiFont(9, true);
+            lightBackgroundBrush = CreateSolidBrush(RGB(246, 248, 251));
+            darkHeaderBrush = CreateSolidBrush(RGB(23, 36, 58));
 
             HWND title = CreateWindowW(
                 L"STATIC", L"BGE Double H Fix",
@@ -576,15 +580,28 @@ namespace
         {
             HDC hdc = reinterpret_cast<HDC>(wParam);
             HWND control = reinterpret_cast<HWND>(lParam);
-            SetBkMode(hdc, TRANSPARENT);
+            const int controlId = GetDlgCtrlID(control);
 
-            if (GetDlgCtrlID(control) == IDC_HEADER_TITLE)
-                SetTextColor(hdc, RGB(250, 251, 253));
-            else if (GetDlgCtrlID(control) == IDC_HEADER_SUBTITLE)
-                SetTextColor(hdc, RGB(190, 202, 219));
-            else if (GetDlgCtrlID(control) == IDC_FILE_LABEL || GetDlgCtrlID(control) == IDC_DETAILS_LABEL)
+            // These STATIC controls change text after a save is loaded. Give each
+            // control an opaque background so old text is erased before repainting.
+            // Returning NULL_BRUSH with a transparent background left stale glyphs
+            // visible underneath the new status and hint text.
+            if (controlId == IDC_HEADER_TITLE || controlId == IDC_HEADER_SUBTITLE)
+            {
+                SetBkMode(hdc, OPAQUE);
+                SetBkColor(hdc, RGB(23, 36, 58));
+                SetTextColor(hdc, controlId == IDC_HEADER_TITLE
+                    ? RGB(250, 251, 253)
+                    : RGB(190, 202, 219));
+                return reinterpret_cast<LRESULT>(darkHeaderBrush);
+            }
+
+            SetBkMode(hdc, OPAQUE);
+            SetBkColor(hdc, RGB(246, 248, 251));
+
+            if (controlId == IDC_FILE_LABEL || controlId == IDC_DETAILS_LABEL)
                 SetTextColor(hdc, RGB(91, 108, 131));
-            else if (GetDlgCtrlID(control) == IDC_HINT)
+            else if (controlId == IDC_HINT)
                 SetTextColor(hdc, RGB(98, 113, 134));
             else if (control == g_status)
             {
@@ -602,7 +619,7 @@ namespace
             else
                 SetTextColor(hdc, RGB(70, 84, 104));
 
-            return reinterpret_cast<LRESULT>(GetStockObject(NULL_BRUSH));
+            return reinterpret_cast<LRESULT>(lightBackgroundBrush);
         }
 
         case WM_CTLCOLOREDIT:
@@ -643,6 +660,8 @@ namespace
             if (fontStatus) DeleteObject(fontStatus);
             if (fontMono) DeleteObject(fontMono);
             if (fontSection) DeleteObject(fontSection);
+            if (lightBackgroundBrush) DeleteObject(lightBackgroundBrush);
+            if (darkHeaderBrush) DeleteObject(darkHeaderBrush);
             PostQuitMessage(0);
             return 0;
         }

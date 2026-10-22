@@ -1,103 +1,62 @@
-# BGE Double H Fix — Native C++ / Win32
+# BGE Double H Fix
 
-A tiny native Windows GUI for repairing the confirmed **Double H disappearing /
-Lost Partner bug** in **Beyond Good & Evil - 20th Anniversary Edition (PC)**.
+A lightweight Windows utility to fix the confirmed **Double H Lost Partner bug** in **Beyond Good & Evil - 20th Anniversary Edition (PC)**.
 
-This version uses the Win32 API directly. There is:
+**[Download the latest release](https://github.com/seyfidin/bge_doubleh_fix/releases/latest)**
 
-- no Python dependency
-- no .NET dependency
-- no Qt/GTK dependency
-- no external runtime bundled with the EXE
+## Features
 
-When compiled with MSVC `/MT`, the C/C++ runtime is statically linked as well.
+- Detects the confirmed save state associated with Double H disappearing.
+- Repairs Double H's status so he can follow Jade again.
+- Creates a backup of the original save before making changes.
+- Verifies the result and checks that only the intended byte changed.
+- Native Windows executable with no separate runtime installation required.
 
-## AI-assisted development
+## Usage
 
-This project was developed with the assistance of AI tools. AI was used to generate and refine parts of the source code. The project maintainer is responsible for reviewing, testing, and maintaining the code. As with any save-file editing utility, review the source and keep independent backups of your saves.
+1. Close the game.
+2. Download and run `BGE_DoubleH_Fix.exe`.
+3. Select a `slot*.sav` file, drag it onto the app window, or drag it onto the EXE.
+4. If the confirmed bug state is detected, click **Repair Double H** and confirm.
+5. Load the repaired save in the game.
 
-## Confirmed repair
+Keep a separate backup of your complete save folder as an additional precaution.
 
-The affected save used to develop this tool contained:
+## Safety and limitations
 
-```text
-Perso_ID_status = [4, 4, 3, 2, 2, 2, 0, 0, 0, 0, 0, 0]
-                       ^
-                       Double H
-```
+The tool is designed for one confirmed repair case. It checks the save structure before enabling the repair and refuses to modify unrecognized formats.
 
-Changing only:
+The repair changes only:
 
 ```text
 Perso_ID_status[1]: 4 -> 0
 ```
 
-made Double H immediately reappear and follow Jade again.
+The value `0` is documented as the **Follow** state by the open-source [bgesav project](https://github.com/crumblingstatue/bgesav).
 
-The open-source `bgesav` project for the original game documents `0` as the
-**Follow** state:
+Before writing, the tool creates a `.doubleh-backup` copy. It then reads the save back and verifies that exactly the intended byte changed. If verification fails, it attempts to restore the backup.
 
-https://github.com/crumblingstatue/bgesav
+This is not a general-purpose save editor. Keep your original save and backup files until you have confirmed the repaired save works in the game.
 
-## Safety design
+## Build from source
 
-The tool does not patch a hard-coded absolute offset.
+Requirements: Visual Studio 2022 Build Tools with the **Desktop development with C++** workload.
 
-It:
+1. Open **x64 Native Tools Command Prompt for VS 2022**.
+2. Run:
 
-1. searches for `Perso_ID_status`;
-2. requires exactly one match;
-3. checks for the expected `0x8C` marker and 12 one-byte status values;
-4. only enables the repair for the confirmed Double H state `4`;
-5. creates a `.doubleh-backup` copy before writing;
-6. changes only `Perso_ID_status[1]` from `4` to `0`;
-7. reads the file back;
-8. verifies that exactly one byte changed;
-9. restores the backup if verification fails.
+   ```bat
+   build_msvc.bat
+   ```
 
-Any unfamiliar save structure is rejected instead of being modified.
+The executable is created at `build\\BGE_DoubleH_Fix.exe`.
 
-## Build with Visual Studio / Build Tools
+## AI-assisted development
 
-Install the Visual Studio 2022 Build Tools workload:
+AI tools were used to assist with generating and refining parts of the source code. The project is maintained and tested by the author.
 
-```text
-Desktop development with C++
-```
+## Support, credits and license
 
-Then open:
-
-```text
-x64 Native Tools Command Prompt for VS 2022
-```
-
-and run:
-
-```text
-build_msvc.bat
-```
-
-The result is:
-
-```text
-build\BGE_DoubleH_Fix.exe
-```
-
-The build uses:
-
-```text
-/O2 /MT /SUBSYSTEM:WINDOWS /OPT:REF /OPT:ICF
-```
-
-so it is a native, optimized, statically CRT-linked Windows executable.
-
-## Usage
-
-1. Close Beyond Good & Evil.
-2. Run `BGE_DoubleH_Fix.exe`.
-3. Choose a `slot*.sav`, drag it onto the window, or drag it directly onto the EXE.
-4. If the confirmed Lost Partner state is detected, click **Repair Double H**.
-5. The original save is backed up automatically.
-6. Load the repaired save in the game.
-
-Keep a separate backup of the complete save folder as an additional precaution.
+- **Bug reports:** [Open an issue](https://github.com/seyfidin/bge_doubleh_fix/issues/new/choose). Please include the tool's status and output, but do not publicly upload save files containing information you do not want to share.
+- **Reference:** The [bgesav project](https://github.com/crumblingstatue/bgesav) documents the original game's save-state values.
+- **License:** [MIT](LICENSE).
